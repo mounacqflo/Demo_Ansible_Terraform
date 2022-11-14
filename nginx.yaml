@@ -1,8 +1,95 @@
 ---
 - name: Install Nginx
   hosts: all
+  # specify the linux user to login to the VM
   remote_user: ansible
+  # allows privilege escalation (sudo)
   become: yes
 
+  # array of roles to execute for this playbook
   roles:
   - nginx
+
+  
+  vars: 
+    mysql_root_password: "password"
+
+  tasks:
+    # equivalent apt install python3
+    - name: Install Python3
+      apt:
+        name: python3
+        # equivalent to apt-get update
+        update_cache: yes
+        # Update the apt cache if it is older than the cache_valid_time
+        cache_valid_time: 3600
+        state: present
+
+    # equivalent apt install python3-pip
+    - name: Install pip
+      apt:
+        name: python3-pip
+        update_cache: yes
+        cache_valid_time: 3600
+        state: present
+
+    # Mysql module required for python 
+    - name: Install pyMySQL
+      pip:
+        name: pymysql
+        state: present
+
+
+    - name: Install mysql
+      apt:
+        name: mysql-server
+        update_cache: yes
+        cache_valid_time: 3600
+        state: present
+
+    - name: Start up the mysql service
+      # sudo
+      become: yes
+      # exactly CLI : sudo service mysql start
+      shell: "service mysql start"
+
+    - name: Ensure mysql is enabled to run on startup
+      service: 
+        name: mysql
+        # check if mysql service is started
+        state: started
+        enabled: true
+
+    - name: Set MySQL root password
+      # reset the mysql password for root to "password" during the first launch of the vm 
+      mysql_user:
+        login_host: 'localhost'
+        login_user: 'root'
+        login_password: ''
+        name: root
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        state: present
+
+    # Instruction to create a database inside the mysql console 
+    - name: Create a new database  
+      mysql_db: 
+        name: testdb 
+        state: present 
+        login_user: root 
+        login_password: password  
+    
+    # put the sql file inside the vm
+    - name: Add sample data to database  
+      copy: 
+        src: database.sql
+        dest: /tmp/database.sql  
+        
+    # execute the sql file 
+    - name: Insert sample data into database  
+      mysql_db: 
+        name: testdb 
+        state: import 
+        target: /tmp/database.sql 
+        login_user: root 
+        login_password: "{{ mysql_root_password }}"
